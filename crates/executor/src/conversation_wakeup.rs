@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use anyhow::Context;
 use exoharness::Result;
 use lingua::Message;
 use lingua::universal::UserContent;
@@ -66,8 +65,7 @@ pub async fn send_conversation_wakeup_content(
         None => Err(anyhow::anyhow!(
             "wakeup item {} was consumed by a concurrent sender",
             pending
-        )
-        .into()),
+        )),
     }
 }
 
@@ -127,8 +125,7 @@ mod tests {
 
         drop(guard);
         let same_conv = conversation_send_lock(id);
-        let again =
-            tokio::time::timeout(std::time::Duration::from_secs(1), same_conv.lock()).await;
+        let again = tokio::time::timeout(std::time::Duration::from_secs(1), same_conv.lock()).await;
         assert!(again.is_ok(), "lock was not released after guard drop");
     }
 }

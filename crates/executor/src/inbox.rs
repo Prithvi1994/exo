@@ -56,9 +56,9 @@ impl Inbox {
         let tmp_path = self.item_path(&dir, item.item_id, ".tmp");
         let json = serde_json::to_vec_pretty(&item)?;
 
-        fs::write(&tmp_path, &json).await.with_context(|| {
-            format!("failed to write inbox item {}", tmp_path.display())
-        })?;
+        fs::write(&tmp_path, &json)
+            .await
+            .with_context(|| format!("failed to write inbox item {}", tmp_path.display()))?;
         fs::rename(&tmp_path, &final_path).await.with_context(|| {
             format!(
                 "failed to finalize inbox item {} -> {}",
@@ -100,7 +100,7 @@ impl Inbox {
                 Ok(bytes) => bytes,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(error) => {
-                    return Err(error).context(format!("failed to read {}", path.display()))
+                    return Err(error).context(format!("failed to read {}", path.display()));
                 }
             };
             let item: InboxItem = serde_json::from_slice(&bytes)
@@ -145,7 +145,13 @@ fn parse_pending_item_name(name: &str) -> Option<Uuid7> {
 fn sanitize(conversation_id: &str) -> String {
     conversation_id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -163,7 +169,10 @@ mod tests {
     async fn enqueue_then_drain_returns_items_in_arrival_order() {
         let (_dir, inbox) = temp_inbox();
         for text in ["first", "second", "third"] {
-            inbox.enqueue("conv-1", UserContent::String(text.into())).await.unwrap();
+            inbox
+                .enqueue("conv-1", UserContent::String(text.into()))
+                .await
+                .unwrap();
             // Tiny sleep keeps millisecond uuid7 timestamps distinct.
             tokio::time::sleep(std::time::Duration::from_millis(2)).await;
         }
@@ -182,7 +191,10 @@ mod tests {
     #[tokio::test]
     async fn acked_items_are_not_redelivered() {
         let (_dir, inbox) = temp_inbox();
-        let id = inbox.enqueue("conv", UserContent::String("hello".into())).await.unwrap();
+        let id = inbox
+            .enqueue("conv", UserContent::String("hello".into()))
+            .await
+            .unwrap();
         assert_eq!(inbox.drain("conv").await.unwrap().len(), 1);
 
         inbox.ack("conv", id).await.unwrap();
@@ -196,7 +208,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("inbox");
         let inbox_a = Inbox::new(&root);
-        inbox_a.enqueue("conv", UserContent::String("durable".into())).await.unwrap();
+        inbox_a
+            .enqueue("conv", UserContent::String("durable".into()))
+            .await
+            .unwrap();
 
         // Simulate restart: fresh handle over the same root.
         let inbox_b = Inbox::new(root);
@@ -211,12 +226,18 @@ mod tests {
     #[tokio::test]
     async fn tmp_files_are_ignored_by_drain() {
         let (_dir, inbox) = temp_inbox();
-        inbox.enqueue("conv", UserContent::String("real".into())).await.unwrap();
-
-        let conv_dir = inbox.root.join("conv");
-        fs::write(conv_dir.join("00000000-0000-7000-8000-000000000000.json.tmp"), b"junk")
+        inbox
+            .enqueue("conv", UserContent::String("real".into()))
             .await
             .unwrap();
+
+        let conv_dir = inbox.root.join("conv");
+        fs::write(
+            conv_dir.join("00000000-0000-7000-8000-000000000000.json.tmp"),
+            b"junk",
+        )
+        .await
+        .unwrap();
 
         let items = inbox.drain("conv").await.unwrap();
         assert_eq!(items.len(), 1);
@@ -225,7 +246,10 @@ mod tests {
     #[tokio::test]
     async fn conversations_are_isolated_and_unknown_are_empty() {
         let (_dir, inbox) = temp_inbox();
-        inbox.enqueue("a", UserContent::String("for-a".into())).await.unwrap();
+        inbox
+            .enqueue("a", UserContent::String("for-a".into()))
+            .await
+            .unwrap();
         assert_eq!(inbox.drain("b").await.unwrap().len(), 0);
         assert_eq!(inbox.drain("a").await.unwrap().len(), 1);
     }
