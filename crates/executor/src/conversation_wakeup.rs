@@ -136,8 +136,7 @@ mod tests {
 
         drop(guard);
         let same_conv = conversation_send_lock(id);
-        let again =
-            tokio::time::timeout(std::time::Duration::from_secs(1), same_conv.lock()).await;
+        let again = tokio::time::timeout(std::time::Duration::from_secs(1), same_conv.lock()).await;
         assert!(again.is_ok(), "lock was not released after guard drop");
     }
 }
