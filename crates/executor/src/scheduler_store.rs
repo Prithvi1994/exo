@@ -5,6 +5,8 @@ use exoharness::Uuid7;
 use serde::Serialize;
 use tokio::fs;
 
+use crate::scheduler_backend::{SchedulerStoreBackend, SlotClaimer};
+
 use crate::scheduler_types::{
     NewScheduledTask, ScheduledFireRecord, ScheduledTaskRecord, ScheduledTaskRunRecord,
     migrate_scheduled_task, now_ms,
@@ -393,6 +395,87 @@ impl SchedulerStore {
     fn delivered_fire_path(&self, task_id: &str, slot_ms: u64) -> PathBuf {
         self.delivered_fires_dir()
             .join(format!("{task_id}-{slot_ms}.json"))
+    }
+}
+
+// The filesystem backend is the reference implementation of the persistence
+// contract; the trait impl is deliberately thin over the inherent methods so
+// existing call sites keep compiling unchanged.
+#[async_trait::async_trait]
+impl SlotClaimer for SchedulerStore {
+    async fn try_claim_slot(
+        &self,
+        now_ms: u64,
+        lease_ms: u64,
+        task: &mut ScheduledTaskRecord,
+    ) -> Result<bool> {
+        self.claim_task_atomically(now_ms, lease_ms, task).await
+    }
+
+    async fn release_claim(&self, task_id: &str, slot_ms: u64) -> Result<()> {
+        self.release_claim(task_id, slot_ms).await
+    }
+}
+
+#[async_trait::async_trait]
+impl SchedulerStoreBackend for SchedulerStore {
+    async fn create_task(&self, request: NewScheduledTask) -> Result<ScheduledTaskRecord> {
+        SchedulerStore::create_task(self, request).await
+    }
+    async fn list_tasks(&self) -> Result<Vec<ScheduledTaskRecord>> {
+        SchedulerStore::list_tasks(self).await
+    }
+    async fn get_task(&self, task_id: &str) -> Result<Option<ScheduledTaskRecord>> {
+        SchedulerStore::get_task(self, task_id).await
+    }
+    async fn put_task(&self, task: &ScheduledTaskRecord) -> Result<()> {
+        SchedulerStore::put_task(self, task).await
+    }
+    async fn disable_task(&self, task_id: &str) -> Result<Option<ScheduledTaskRecord>> {
+        SchedulerStore::disable_task(self, task_id).await
+    }
+    async fn delete_task(&self, task_id: &str) -> Result<Option<ScheduledTaskRecord>> {
+        SchedulerStore::delete_task(self, task_id).await
+    }
+    async fn put_pending_fire(&self, fire: &ScheduledFireRecord) -> Result<()> {
+        SchedulerStore::put_pending_fire(self, fire).await
+    }
+    async fn pending_fires(&self) -> Result<Vec<ScheduledFireRecord>> {
+        SchedulerStore::pending_fires(self).await
+    }
+    async fn mark_fire_delivered(&self, task_id: &str, slot_ms: u64) -> Result<()> {
+        SchedulerStore::mark_fire_delivered(self, task_id, slot_ms).await
+    }
+    async fn fire_was_delivered(&self, task_id: &str, slot_ms: u64) -> Result<bool> {
+        SchedulerStore::fire_was_delivered(self, task_id, slot_ms).await
+    }
+    async fn put_run(&self, run: &ScheduledTaskRunRecord) -> Result<()> {
+        SchedulerStore::put_run(self, run).await
+    }
+    async fn list_tasks_for_conversation(
+        &self,
+        agent_id: &str,
+        conversation_id: &str,
+        include_disabled: bool,
+    ) -> Result<Vec<ScheduledTaskRecord>> {
+        SchedulerStore::list_tasks_for_conversation(
+            self,
+            agent_id,
+            conversation_id,
+            include_disabled,
+        )
+        .await
+    }
+    async fn due_tasks(&self, now_ms: u64) -> Result<Vec<ScheduledTaskRecord>> {
+        SchedulerStore::due_tasks(self, now_ms).await
+    }
+    async fn claim_due_tasks(
+        &self,
+        now_ms: u64,
+        limit: usize,
+        lease_ms: u64,
+    ) -> Result<Vec<ScheduledTaskRecord>> {
+        SchedulerStore::claim_due_tasks(self, now_ms, limit, lease_ms).await
     }
 }
 
